@@ -23,12 +23,29 @@ dim(train)
 glimpse(train)
 summary(train)
 
+test$Survived <- NA
+all <- rbind(train,test)
+sapply(all, function(x){sum(is.na(x))})
+
 sum(is.na(train$Embarked))
 
-#Training data set contains 12 variables and 891 rows.
-#Unfortunately we have 177 NA values in column Age and 2 NA values in column Embarked.
+#Adding new variable and looking into NA values
+all$Title <- gsub('(.*, )|(\\..*)', '', all$Name)
+count(all, Title)
 
-#These 2 values may be easy to predict. 
+VIP <- c("Capt","Col","Don","Dona","Dr","Jonkheer","Lady","Major",
+         "Mlle", "Mme","Rev","Sir","the Countess")
+all$Title[all$Title %in% VIP] <- "VIP"
+all$Title <- as.factor(all$Title)
+count(all, Title)
+
+sapply(all, function(x){sum(is.na(x))})
+
+#Data set contains 12 variables and 1309 rows. Unfortunately we have 263 NA values in column Age,
+#2 NA values in column Embarked and 1 NA value in Fare. NA values in cabin does not interest us. 
+
+
+#These 2 values of Embarked may be easy to predict. 
 
 which(is.na(train$Embarked))
 
@@ -45,19 +62,35 @@ ggplot(train, aes(x = Embarked, y = Fare, fill = as.factor(Pclass))) + geom_boxp
 
 train$Embarked[c(62, 830)]  <- "C"
 
-#At this moment I will not predict Age in data points where there is NA. 
+#Dealing with NA in Fare column
+
+which(is.na(all$Fare))
+all$Fare[1044] <- median(all$Fare, na.rm = TRUE)
+
+#Dealing with NA's in Age column
+
+AgeLM <- lm(Age ~ Pclass + Sex + SibSp  + Embarked+Title,
+            data=all[!is.na(all$Age),])
+summary(AgeLM)
+all$AgeLM <- predict(AgeLM, all)
+indexMissingAge <- which(is.na(all$Age))
+all$Age[indexMissingAge] <- all$AgeLM[indexMissingAge]
+
+#Splitting the all data set
+
+train2 <- all[1:891,]
+test2 <- all[892:1309,]
 
 
-
-#Analysis of the training data set
+#Exploring training data set
 
 #Firstly I will look into qualitative variables
 
-table(train$Survived)
+table(train2$Survived)
 #% of people who died
 549/(342+549)
 
-ggplot(data = train) + geom_bar(mapping =aes(x = as.factor(Survived), fill = as.factor(Survived)))+
+ggplot(data = train2) + geom_bar(mapping =aes(x = as.factor(Survived), fill = as.factor(Survived)))+
   scale_fill_discrete(name = "Legend", labels = c("Died", "Survived"))+
   labs(x = "Survived", y = "Count")
 
@@ -65,12 +98,12 @@ ggplot(data = train) + geom_bar(mapping =aes(x = as.factor(Survived), fill = as.
 
 
 
-table(train$Survived, train$Pclass)
+table(train2$Survived, train2$Pclass)
 #survived in the first class 
 136/(80+136)
 #survived in the third class
 119/(372+119)
-ggplot(data = train)+
+ggplot(data = train2)+
   geom_bar(mapping = aes(x = Pclass, fill = as.factor(Survived)))+ 
   scale_fill_discrete(name = "Legend", labels = c("Died", "Survived"))
 
@@ -81,22 +114,27 @@ ggplot(data = train)+
 df <- data.frame("Sex" = c('female 37%', 'male 63%'), prop = c((64+197)/(64+197+360+93), (360+93)/(360+94+64+197)))
 pie3D(df$prop, labels = df$Sex, explode=0.1, main = 'Piechart of gender')
 
-table(train$Survived, train$Sex)
+table(train2$Survived, train2$Sex)
 #women survived 
 233/(81+233)
 #men survived
 109/(468+109)
-ggplot(data = train)+
+ggplot(data = train2)+
   geom_bar(mapping = aes(x = Sex, fill = as.factor(Survived)))+ 
   scale_fill_discrete(name = "Legend", labels = c("Died", "Survived"))
 
 #74% of women managed to survive in the disaster.  On the other hand less than 20% of men escape alive from titanic.
 #It means that gender drastically influence the probability of survival. 
 
+ggplot(data = train2)+
+geom_bar(mapping = aes(x = Title, fill = as.factor(Survived)))+ 
+scale_fill_discrete(name = "Legend", labels = c("Died", "Survived"))
 
-table(train$Survived, train$Embarked)
+#There we can see the more complex division. Of course our conclusion do not change.
 
-ggplot(data = train)+
+table(train2$Survived, train2$Embarked)
+
+ggplot(data = train2)+
   geom_bar(mapping = aes(x = Embarked, fill = as.factor(Survived)))+ 
   scale_fill_discrete(name = "Legend", labels = c("Died", "Survived"))
 
@@ -104,8 +142,8 @@ ggplot(data = train)+
 #People who got shipped on Cherbourg more likely escape alive from titanic than people who got shipped on Queenstown and Southampton. 
 
 
-table(train$Embarked, train$Pclass)
-ggplot(data = train)+
+table(train2$Embarked, train2$Pclass)
+ggplot(data = train2)+
   geom_bar(mapping = aes(x = Embarked, fill = as.factor(Pclass)))
 
 #Majority of people who got shipped in Cherbourg were travelling in the frist class.
@@ -115,7 +153,7 @@ ggplot(data = train)+
 
 #Now I will look into quantitative variables. 
 
-ggplot(train, aes(x = as.factor(Survived),y = Age, fill = as.factor(Survived)))+ 
+ggplot(train2, aes(x = as.factor(Survived),y = Age, fill = as.factor(Survived)))+ 
   geom_boxplot()+ 
   theme(legend.position = "none")+ 
   labs(x="Survived")
@@ -124,7 +162,7 @@ ggplot(train, aes(x = as.factor(Survived),y = Age, fill = as.factor(Survived)))+
 #It makes sense, because younger people had priority to be on the lifeboat. 
 
 
-ggplot(train, aes(x = as.factor(Survived), y = SibSp, fill = as.factor(Survived))) +
+ggplot(train2, aes(x = as.factor(Survived), y = SibSp, fill = as.factor(Survived))) +
   geom_boxplot()  +
   theme(legend.position = "none") + 
   labs(x="Survived") 
@@ -132,13 +170,13 @@ ggplot(train, aes(x = as.factor(Survived), y = SibSp, fill = as.factor(Survived)
 #There is no visible difference. 
 
 
-ggplot(train, aes(x = as.factor(Survived), y = Parch, fill = as.factor(Survived))) + geom_boxplot()  + theme(legend.position = "none") + 
+ggplot(train2, aes(x = as.factor(Survived), y = Parch, fill = as.factor(Survived))) + geom_boxplot()  + theme(legend.position = "none") + 
   labs(x="Survived") 
 
 #People who survived had more children/parents aboard, but the difference is not very big. 
 
 
-ggplot(train, aes(x = as.factor(Survived), y = Fare, fill = as.factor(Survived))) + 
+ggplot(train2, aes(x = as.factor(Survived), y = Fare, fill = as.factor(Survived))) + 
   geom_boxplot()  + 
   theme(legend.position = "none") + 
   labs(x="Survived") 
@@ -151,74 +189,54 @@ ggplot(train, aes(x = as.factor(Survived), y = Fare, fill = as.factor(Survived))
 
 #Now I will prepare variables and make logistic regression. 
 
-train$male <- ifelse(train$Sex == 'male', 1, 0)
-train$Cherbourg <- ifelse(train$Embarked == "C", 1, 0)
-train$Southampton <- ifelse(train$Embarked == "S", 1, 0)
+train2$male <- ifelse(train2$Sex == 'male', 1, 0)
+train2$Cherbourg <- ifelse(train2$Embarked == "C", 1, 0)
+train2$Southampton <- ifelse(train2$Embarked == "S", 1, 0)
 
-lr1 <- glm(Survived ~ Pclass + Age + SibSp + Parch + Fare + male + Cherbourg + Southampton, data = train, family = binomial)
-summary(lr1)
-
-#Now I will exclude, one by one  unsignificant estimations. 
-
-lr2 <- glm(Survived ~ Pclass + Age + SibSp  + Fare + male + Cherbourg + Southampton, data = train, family = binomial)
-summary(lr2)
-
-lr3 <- glm(Survived ~ Pclass + Age + SibSp + male + Cherbourg + Southampton, data = train, family = binomial)
-summary(lr3)
 
 #Final logistic regression
 
 
-lr4 <- glm(Survived ~ Pclass + Age + SibSp + male + Cherbourg, data = train, family = binomial)
+lr4 <- glm(Survived ~ Pclass + Age + SibSp + Cherbourg+Title, data = train2, family = binomial)
 summary(lr4)
 
 
-train <- na.omit(train)
-train$probabilities  <-  predict(lr4, data = train,  type = "response")
-train$prediction  <- rep(0, length(train$PassengerId))
-train$prediction[train$probabilities > 0.5] <- 1
+train2$probabilities  <-  predict(lr4, data = train2,  type = "response")
+train2$prediction  <- rep(0, length(train2$PassengerId))
+train2$prediction[train2$probabilities > 0.5] <- 1
 
-results1 <-  table(predicted = train$prediction, actual = train$Survived)
+results1 <-  table(predicted = train2$prediction, actual = train2$Survived)
 results1
 
 
-mean(train$prediction == train$Survived)
+mean(train2$prediction == train2$Survived)
 
-#Logistic regression corectly predicted the result 80,25% of time. 
+#Logistic regression corectly predicted the result 82,38% of time. 
 
 
 #Linear discriminant analysis
 
 library(MASS)
-lda  <- lda(Survived~Pclass+Age+male+Cherbourg+Fare+SibSp+Parch, data = train)
+lda  <- lda(Survived~Pclass + Age + SibSp + Cherbourg+Title, data = train2)
 lda
-lda.prediction <- predict(lda, data = train)
+lda.prediction <- predict(lda, data = train2)
 names(lda.prediction)
 lda.class  <- lda.prediction$class
 
-table(prediction = lda.class, actual = train$Survived)
+table(prediction = lda.class, actual = train2$Survived)
 
-mean(lda.class == train$Survived)
+mean(lda.class == train2$Survived)
 
-#Linear discriminant analysis corectly predicted the result 79,55% of time. 
+#Linear discriminant analysis corectly predicted the result 82,15% of time. 
 
 
-
-#Quadratic discriminant analysis
-
-qda <- qda(Survived~Pclass+Age+male+Cherbourg+Fare+SibSp+Parch, data = train)
-qda.class <- predict(qda, data = train)$class
-table(prediction = qda.class, actual = train$Survived)
-
-mean(qda.class == train$Survived)
-
-#Quadratic discriminant analysis corectly predicted the result 80,81% of time. 
 
 #Summary
 
-#Quadratic discriminant analysis would be the best to predict the survival in the titanic.
-#However the discrepancies between corectness of predictions are low and I tested alghoritms on the train data set, which was used to create the models.
-#Unfortunately at that time I did not manage to get the information about survivals in the train data set.
-#If I did I would have tested alghoritms on test data set. I also did not fill the NA values in the Age column. 
-#If I did the predictions would be probably  better. 
+#Logistic regression would be the best to predict the survival in the titanic. 
+#However the discrepancies between corectness of predictions are low
+#and I tested alghoritms on the train data set,
+#which was used to create the models.
+#It means the accuracy is biased. 
+#I also tested my alghoritms on test data set and i scored 0.77990 accuracy. 
 
