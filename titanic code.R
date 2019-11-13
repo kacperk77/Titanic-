@@ -205,11 +205,8 @@ train2$probabilities  <-  predict(lr4, data = train2,  type = "response")
 train2$prediction  <- rep(0, length(train2$PassengerId))
 train2$prediction[train2$probabilities > 0.5] <- 1
 
-results1 <-  table(predicted = train2$prediction, actual = train2$Survived)
-results1
+confusionMatrix(as.factor(train2$prediction), reference = as.factor(train2$Survived), mode = "everything")
 
-
-mean(train2$prediction == train2$Survived)
 
 #Logistic regression corectly predicted the result 82,38% of time. 
 
@@ -223,13 +220,28 @@ lda.prediction <- predict(lda, data = train2)
 names(lda.prediction)
 lda.class  <- lda.prediction$class
 
-table(prediction = lda.class, actual = train2$Survived)
-
-mean(lda.class == train2$Survived)
+confusionMatrix(as.factor(lda.class), reference = as.factor(train2$Survived), mode = "everything")
 
 #Linear discriminant analysis corectly predicted the result 82,15% of time. 
 
+#Decision tree
+#I will preprare decision tree with 5 fold cross validation. 
 
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 5)
+
+treeCaret_simple <- train(as.factor(Survived) ~ Pclass + Age+Title + SibSp + Parch+Cherbourg+Southampton,
+                          data = train2,
+                          method = "rpart", 
+                          trControl = fitControl)
+
+rpart.plot(treeCaret_simple$finalModel)
+
+train2$tree3 <- predict(treeCaret_simple, data = train2)
+confusionMatrix(as.factor(train2$tree3), reference = as.factor(train2$Survived), mode = "everything")
+
+#Regression tree correctly predicted the result 81.37% of time.
 
 #Summary
 
@@ -238,5 +250,5 @@ mean(lda.class == train2$Survived)
 #and I tested alghoritms on the train data set,
 #which was used to create the models.
 #It means the accuracy is biased. 
-#I also tested my alghoritms on test data set and i scored 0.77990 accuracy. 
+#I also tested my alghoritms on test data set and i scored 0.78947 accuracy. 
 
